@@ -1,40 +1,29 @@
 from flask import Flask, request, jsonify
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from collections import Counter
 
 app = Flask(__name__)
 
 def analyze_global_styles(soup):
-    """
-    Analyzes the entire document and creates a "style dictionary"
-    for the most frequently used classes.
-    """
     styles = {}
-    
-    # List of tags to analyze for styling
     tags_to_analyze = ['p', 'h3', 'li']
-    
     for tag_name in tags_to_analyze:
         class_counter = Counter()
         span_class_counter = Counter()
-        
         for tag in soup.find_all(tag_name):
-            # Store the classes of the main tag
             if tag.has_attr('class'):
                 class_counter[" ".join(tag['class'])] += 1
-            
-            # Store the classes of the inner <span> tag
             span = tag.find('span')
             if span and span.has_attr('class'):
                 span_class_counter[" ".join(span['class'])] += 1
-                
-        # Select the most frequently used classes
+        
         if class_counter:
+            most_common_tag_class_list = class_counter.most_common(1)
+            most_common_span_class_list = span_class_counter.most_common(1)
             styles[tag_name] = {
-                "tag_class": class_counter.most_common(1)[0][0],
-                "span_class": span_class_counter.most_common(1)[0][0] if span_class_counter else ""
+                "tag_class": most_common_tag_class_list[0][0] if most_common_tag_class_list else "",
+                "span_class": most_common_span_class_list[0][0] if most_common_span_class_list else ""
             }
-            
     return styles
 
 @app.route('/prepare', methods=['POST'])
@@ -46,7 +35,6 @@ def prepare_for_ai():
     soup = BeautifulSoup(html_input, 'html.parser')
     head_content = str(soup.find('head')) if soup.find('head') else ""
     
-    # 1. Create the global style dictionary once
     style_dictionary = analyze_global_styles(soup)
     
     processed_sections = []
@@ -57,7 +45,15 @@ def prepare_for_ai():
         if not title_text:
             continue
 
-        content_tags = [sibling for sibling in h2.find_next_siblings() if sibling.name != 'h2']
+        content_tags = []
+        for sibling in h2.find_next_siblings():
+            if sibling.name == 'h2':
+                break
+            # --- შესწორება აქ არის ---
+            # ვამოწმებთ, რომ sibling არის ნამდვილი თეგი და არა ცარიელი სტრიქონი
+            if isinstance(sibling, Tag):
+                content_tags.append(sibling)
+
         if not content_tags:
             continue
         
@@ -71,7 +67,7 @@ def prepare_for_ai():
             "head_content": head_content,
             "title_html": str(h2),
             "clean_text_for_ai": clean_text_for_ai,
-            "style_dictionary": style_dictionary # Pass the same dictionary to every section
+            "style_dictionary": style_dictionary
         })
             
     return jsonify(processed_sections)
@@ -87,21 +83,16 @@ def reconstruct_html():
     
     soup = BeautifulSoup(ai_html, 'html.parser')
     
-    # 2. Process all tags for which we have saved styles
-    for tag in soup.find_all(True): # True gets all tags
+    for tag in soup.find_all(True):
         tag_name = tag.name
         if tag_name in style_dictionary:
             style_info = style_dictionary[tag_name]
             original_text = tag.get_text(strip=True)
             
-            # 3. Create the new, full structure
-            tag.clear() # Clear old content to insert the new structure
-
-            # Apply the class to the main tag
+            tag.clear() 
             if style_info.get("tag_class"):
                 tag['class'] = style_info["tag_class"].split()
 
-            # Create and insert the inner <span>
             if style_info.get("span_class"):
                 new_span = soup.new_tag('span')
                 new_span['class'] = style_info["span_class"].split()
