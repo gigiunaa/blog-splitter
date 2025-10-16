@@ -45,24 +45,22 @@ def prepare_for_ai():
         if not title_text:
             continue
 
-        content_tags = []
+        # --- პრობლემური ლოგიკის სრული ჩანაცვლება ---
+        clean_text_parts = []
         for sibling in h2.find_next_siblings():
             if sibling.name == 'h2':
                 break
-            # --- საბოლოო შესწორება აქ არის ---
-            # ვამოწმებთ, რომ sibling-ს აქვს სახელი (ანუ ის ნამდვილი თეგია)
+            # ვიღებთ მხოლოდ იმ ელემენტების ტექსტს, რომლებიც ნამდვილი თეგებია
             if sibling.name is not None:
-                content_tags.append(sibling)
-
-        if not content_tags:
+                clean_text_parts.append(sibling.get_text(strip=True))
+        
+        # თუ h2-ის შემდეგ კონტენტი არ არის, გამოვტოვოთ
+        if not clean_text_parts:
             continue
-        
-        temp_div = soup.new_tag("div")
-        for tag in content_tags:
-            temp_div.append(tag.clone()) # ეს ხაზი ახლა უსაფრთხოა
-        
-        clean_text_for_ai = temp_div.get_text(separator='\n\n', strip=True)
-        
+            
+        # ვაერთიანებთ ტექსტის ნაწილებს
+        clean_text_for_ai = "\n\n".join(filter(None, clean_text_parts))
+
         processed_sections.append({
             "head_content": head_content,
             "title_html": str(h2),
