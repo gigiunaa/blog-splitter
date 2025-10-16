@@ -6,12 +6,12 @@ app = Flask(__name__)
 
 def analyze_global_styles(soup):
     """
-    აანალიზებს მთლიან დოკუმენტს და ქმნის "სტილების ლექსიკონს"
-    ყველაზე ხშირად გამოყენებული კლასებისთვის.
+    Analyzes the entire document and creates a "style dictionary"
+    for the most frequently used classes.
     """
     styles = {}
     
-    # გასაანალიზებელი თეგების სია
+    # List of tags to analyze for styling
     tags_to_analyze = ['p', 'h3', 'li']
     
     for tag_name in tags_to_analyze:
@@ -19,16 +19,16 @@ def analyze_global_styles(soup):
         span_class_counter = Counter()
         
         for tag in soup.find_all(tag_name):
-            # ვიმახსოვრებთ მთავარი თეგის კლასებს
+            # Store the classes of the main tag
             if tag.has_attr('class'):
                 class_counter[" ".join(tag['class'])] += 1
             
-            # ვიმახსოვრებთ შიდა <span> თეგის კლასებს
+            # Store the classes of the inner <span> tag
             span = tag.find('span')
             if span and span.has_attr('class'):
                 span_class_counter[" ".join(span['class'])] += 1
                 
-        # ვირჩევთ ყველაზე ხშირად გამოყენებულ კლასებს
+        # Select the most frequently used classes
         if class_counter:
             styles[tag_name] = {
                 "tag_class": class_counter.most_common(1)[0][0],
@@ -46,7 +46,7 @@ def prepare_for_ai():
     soup = BeautifulSoup(html_input, 'html.parser')
     head_content = str(soup.find('head')) if soup.find('head') else ""
     
-    # 1. ვქმნით გლობალური სტილების ლექსიკონს ერთხელ
+    # 1. Create the global style dictionary once
     style_dictionary = analyze_global_styles(soup)
     
     processed_sections = []
@@ -71,7 +71,7 @@ def prepare_for_ai():
             "head_content": head_content,
             "title_html": str(h2),
             "clean_text_for_ai": clean_text_for_ai,
-            "style_dictionary": style_dictionary # ყველა სექციას ვაყოლებთ ერთსა და იმავე ლექსიკონს
+            "style_dictionary": style_dictionary # Pass the same dictionary to every section
         })
             
     return jsonify(processed_sections)
@@ -87,22 +87,21 @@ def reconstruct_html():
     
     soup = BeautifulSoup(ai_html, 'html.parser')
     
-    # 2. ვამუშავებთ ყველა თეგს, რისთვისაც სტილი გვაქვს შენახული
-    for tag in soup.find_all(True): # True ნიშნავს, რომ ვიღებთ ყველა თეგს
+    # 2. Process all tags for which we have saved styles
+    for tag in soup.find_all(True): # True gets all tags
         tag_name = tag.name
         if tag_name in style_dictionary:
             style_info = style_dictionary[tag_name]
             original_text = tag.get_text(strip=True)
             
-            # 3. ვქმნით ახალ, სრულ სტრუქტურას
-            # ვშლით ძველ შიგთავსს, რომ ახალი ჩავსვათ
-            tag.clear() 
+            # 3. Create the new, full structure
+            tag.clear() # Clear old content to insert the new structure
 
-            # ვანიჭებთ კლასს მთავარ თეგს
+            # Apply the class to the main tag
             if style_info.get("tag_class"):
                 tag['class'] = style_info["tag_class"].split()
 
-            # ვქმნით და ვსვამთ შიდა <span>-ს
+            # Create and insert the inner <span>
             if style_info.get("span_class"):
                 new_span = soup.new_tag('span')
                 new_span['class'] = style_info["span_class"].split()
@@ -112,7 +111,6 @@ def reconstruct_html():
                 tag.string = original_text
 
     return str(soup)
-
 
 if __name__ == "__main__":
     import os
