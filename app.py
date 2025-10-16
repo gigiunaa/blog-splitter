@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 from collections import Counter
 
 app = Flask(__name__)
@@ -49,9 +49,9 @@ def prepare_for_ai():
         for sibling in h2.find_next_siblings():
             if sibling.name == 'h2':
                 break
-            # --- შესწორება აქ არის ---
-            # ვამოწმებთ, რომ sibling არის ნამდვილი თეგი და არა ცარიელი სტრიქონი
-            if isinstance(sibling, Tag):
+            # --- საბოლოო შესწორება აქ არის ---
+            # ვამოწმებთ, რომ sibling-ს აქვს სახელი (ანუ ის ნამდვილი თეგია)
+            if sibling.name is not None:
                 content_tags.append(sibling)
 
         if not content_tags:
@@ -59,7 +59,7 @@ def prepare_for_ai():
         
         temp_div = soup.new_tag("div")
         for tag in content_tags:
-            temp_div.append(tag.clone())
+            temp_div.append(tag.clone()) # ეს ხაზი ახლა უსაფრთხოა
         
         clean_text_for_ai = temp_div.get_text(separator='\n\n', strip=True)
         
